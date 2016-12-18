@@ -1,0 +1,8 @@
+*.config
+*.creator*
+*.files
+*.includes
+/build/
+*.so
+*.pyc
+*.pyo
