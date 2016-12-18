@@ -404,12 +404,12 @@ PyMODINIT_FUNC init_gpiomem(void)
 
     PyModule_AddIntConstant(mod, "IN"  , 0);
     PyModule_AddIntConstant(mod, "OUT" , 1);
-    PyModule_AddIntConstant(mod, "ALT0", 2);
-    PyModule_AddIntConstant(mod, "ALT1", 3);
-    PyModule_AddIntConstant(mod, "ALT2", 4);
-    PyModule_AddIntConstant(mod, "ALT3", 5);
-    PyModule_AddIntConstant(mod, "ALT4", 6);
-    PyModule_AddIntConstant(mod, "ALT5", 7);
+    PyModule_AddIntConstant(mod, "ALT0", 4);
+    PyModule_AddIntConstant(mod, "ALT1", 5);
+    PyModule_AddIntConstant(mod, "ALT2", 6);
+    PyModule_AddIntConstant(mod, "ALT3", 7);
+    PyModule_AddIntConstant(mod, "ALT4", 3);
+    PyModule_AddIntConstant(mod, "ALT5", 2);
 
     MODINIT_RET(mod);
 }

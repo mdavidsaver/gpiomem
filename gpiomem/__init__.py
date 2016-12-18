@@ -1,1 +1,1 @@
-from _gpiomem import GPIOMEM
+from _gpiomem import *
