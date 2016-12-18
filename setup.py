@@ -8,6 +8,8 @@ setup(
   description = "Access for RPi/BCM GPIO registers",
   ext_modules = [
     Extension("gpiomem._gpiomem",
-              sources = ['gpiomem/gpiomem.c'])
+              sources = ['gpiomem/gpiomem.c']),
+    Extension("gpiomem._lspi",
+              sources = ['gpiomem/lspi.c']),
   ]
 )

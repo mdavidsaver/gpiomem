@@ -1,4 +1,7 @@
-
+/**
+ * Interface for /dev/gpiomem which exposes the GPIO control
+ * registers on the BCM2835/7
+ */
 #include <Python.h>
 #include <structmember.h>
 
@@ -348,14 +351,14 @@ static PyTypeObject gpiomem_type = {
     PyObject_HEAD_INIT(NULL)
     0,
 #endif
-    "_gpiomem.GPIOMEM",
+    "gpiomem._gpiomem.GPIOMEM",
     sizeof(gpiomem),
 };
 
 #if PY_MAJOR_VERSION >= 3
 static struct PyModuleDef gpiomemmodule = {
   PyModuleDef_HEAD_INIT,
-    "_gpiomem",
+    "gpiomem._gpiomem",
     NULL,
     -1,
     NULL
@@ -379,7 +382,7 @@ PyMODINIT_FUNC init_gpiomem(void)
 #if PY_MAJOR_VERSION >= 3
     mod = PyModule_Create(&gpiomemmodule);
 #else
-    mod = Py_InitModule("_gpiomem", NULL);
+    mod = Py_InitModule("gpiomem._gpiomem", NULL);
 #endif
 
     gpiomem_type.tp_flags = Py_TPFLAGS_DEFAULT|Py_TPFLAGS_BASETYPE;
