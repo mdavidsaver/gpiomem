@@ -124,7 +124,7 @@ PyObject *spidev_xfer(spidev *pvt, PyObject *args, PyObject *kws)
 static
 struct PyMemberDef spidev_members[] = {
     {"mode", T_UINT, offsetof(spidev, mode), 0, "SPI mode 0-3"},
-    {"speed", T_UINT, offsetof(spidev, mode), 0, "Bit rate in Hz"},
+    {"speed", T_UINT, offsetof(spidev, speed), 0, "Bit rate in Hz"},
     {NULL}
 };
 
