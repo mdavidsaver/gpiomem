@@ -28,12 +28,18 @@ class ICEIO(object):
         self.io = GPIOMEM()
         self.pins_std()
         self.spi0 = SPI(0,0) # CE0
-        self.spi0.mode = 2 # arbitrary
+        self.spi0.mode = 3 # arbitrary
 
         # iCE40 configuration needs
-        #  CPOL=1  CPHA=0  aka Mode2
-        self.spi1 = SPI(1,2) # CE2
-        self.spi1.mode = 2
+        # SCLK idle high
+        # setup on 1->0, sample on 0->1
+        #  CPOL=1  CPHA=1  aka Mode3
+        #
+        # as of Linux 4.4, SPI1 is messed up, (MOSI is shifted by one bit)
+        # so we bit bang for now...
+        # 
+        #self.spi1 = SPI(1,2) # CE2
+        #self.spi1.mode = 3
 
     def pins_std(self):
         IO = self.io
@@ -42,13 +48,15 @@ class ICEIO(object):
                 [ALT0     , ALT0     , ALT0     , ALT0])
 
         IO.setalt([SPI1_SCLK, SPI1_MOSI, SPI1_MISO, SPI1_SS],
-                [ALT4     , ALT4     , ALT4     , ALT4])
+                [OUT     , OUT     , IN     , OUT])
 
         IO.setalt([CDONE, CRST],
                 [IN   , OUT])
 
         IO.setalt([GCLK0, GCLK1],
                 [IN, IN]) #[ALT0, ALT0])
+
+        IO.output([SPI1_SCLK], [1]) # idles high
 
     def pins_manual(self):
         pins = [
@@ -77,6 +85,16 @@ class ICEIO(object):
         _log.info("Ready done=%s reset=%s", done, reset)
         return reset and done
 
+    def _spi(self, data):
+        # assume SCLK=1
+        for V in data:
+            for i in range(7,-1,-1):
+                # 1 -> 0  setup
+                self.io.output([SPI1_SCLK, SPI1_MOSI], [0, (ord(V)>>i)&1])
+                # 0 -> 1 sample
+                self.io.output([SPI1_SCLK], [1])
+        # leave SCLK=1
+
     def load(self, bitfile=None, bitstream=None):
         if bitstream is None:
             with open(bitfile, 'rb') as F:
@@ -90,14 +108,10 @@ class ICEIO(object):
 
         _log.info("Load bitstream %s from %s", len(bitstream), bitfile)
 
-        ssmode, = self.io.getalt([SPI1_SS])
-        _log.debug("SPI1_SS mode was %s", ssmode)
         try:
-            # we take special control of SPI1 SS
-            self.io.setalt([SPI1_SS], [OUT])
 
             # ensure not in reset and select
-            self.io.output([CRST, SPI1_SS], [1, 0])
+            self.io.output([CRST, SPI1_SS, SPI1_SCLK], [1, 0, 1])
             time.sleep(0.001) # arbitrary to ensure CRST=1 is seen
 
             # reset
@@ -111,17 +125,14 @@ class ICEIO(object):
             if self.ready():
                 raise RuntimeError("Failed to initiate reset")
 
-            self.spi1.xfer(data=bitstream)
+            self._spi(data=bitstream)
 
             if not self.ready():
                 raise RuntimeError("Failed to complete configuration")
 
         finally:
             # ensure not in reset and de-select
-            self.io.output([CRST, SPI1_SS], [1, 1])
-
-            # restore automatic SS control
-            self.io.setalt([SPI1_SS], [ssmode])
+            self.io.output([CRST, SPI1_SCLK, SPI1_SS], [1, 1, 1])
 
 def getargs():
     from argparse import ArgumentParser
