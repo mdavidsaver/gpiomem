@@ -17,6 +17,7 @@ typedef struct {
     int fd;
     unsigned mode;
     unsigned speed;
+    unsigned delay;
 
 } spidev;
 
@@ -42,6 +43,8 @@ int spidev_init(spidev *pvt, PyObject *args, PyObject *kws)
         PyErr_SetFromErrnoWithFilename(PyExc_OSError, dname);
         return -1;
     }
+
+    pvt->mode = pvt->speed = pvt->delay = 0u;
 
     return 0;
 }
@@ -90,7 +93,7 @@ PyObject *spidev_xfer(spidev *pvt, PyObject *args, PyObject *kws)
     X[0].len = buflen;
     X[0].bits_per_word = 8;
     X[0].speed_hz      = X[1].speed_hz      = pvt->speed;
-    X[0].delay_usecs   = X[1].delay_usecs   = 10;
+    X[0].delay_usecs   = X[1].delay_usecs   = pvt->delay;
 
     if(buflen==1) {
         X[0].bits_per_word = nbits;
@@ -125,12 +128,13 @@ static
 struct PyMemberDef spidev_members[] = {
     {"mode", T_UINT, offsetof(spidev, mode), 0, "SPI mode 0-3"},
     {"speed", T_UINT, offsetof(spidev, speed), 0, "Bit rate in Hz"},
+    {"delay", T_UINT, offsetof(spidev, delay), 0, "CS hold delay after xfer"},
     {NULL}
 };
 
 static
 struct PyMethodDef spidev_methods[] = {
-    {"xfer", (PyCFunction)&spidev_xfer, METH_VARARGS,
+    {"xfer", (PyCFunction)&spidev_xfer, METH_VARARGS|METH_KEYWORDS,
      "Perform transfer"},
     {NULL}
 };

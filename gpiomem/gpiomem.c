@@ -26,14 +26,20 @@ static
 uint32_t ioread32(void *addr)
 {
     volatile uint32_t *iptr = addr;
-    return *iptr;
+    uint32_t ret;
+    __asm__ __volatile__("":::"memory");
+    ret = *iptr;
+    __asm__ __volatile__("":::"memory");
+    return ret;
 }
 
 static
 void iowrite32(void *addr, uint32_t val)
 {
     volatile uint32_t *iptr = addr;
+    __asm__ __volatile__("":::"memory");
     *iptr = val;
+    __asm__ __volatile__("":::"memory");
 }
 
 static
@@ -332,12 +338,17 @@ struct PyMemberDef gpiomem_members[] = {
 static
 struct PyMethodDef gpiomem_methods[] = {
 {"getalt", (PyCFunction)&gpiomem_getalt, METH_VARARGS,
+ "getalt([pin#, ...]) -> [mode, ...]\n"
  "Fetch current alt function assignments"},
 {"setalt", (PyCFunction)&gpiomem_setalt, METH_VARARGS,
- "Change current alt function assignments"},
+ "setalt([pin#, ...], [mode, ...])\n"
+ "Change current alt function assignments.\n"
+ "One of IN|OUT|ALT0|ALT1|ALT2|ALT3|ALT4|ALT5"},
 {"output", (PyCFunction)&gpiomem_out, METH_VARARGS,
+ "output([pin#, ...], [value, ...])\n"
  "Set output pins"},
-{"intput", (PyCFunction)&gpiomem_in, METH_VARARGS,
+{"input", (PyCFunction)&gpiomem_in, METH_VARARGS,
+ "input([pin#, ...]) -> [mode, ...]\n"
  "Read input pins"},
 {"_sync", (PyCFunction)&gpiomem__sync, METH_VARARGS,
  "msync() the underlying file mapping"},
