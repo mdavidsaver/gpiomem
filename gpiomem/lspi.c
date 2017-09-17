@@ -35,6 +35,7 @@ int spidev_init(spidev *pvt, PyObject *args, PyObject *kws)
 
     if(!dname) {
         PyOS_snprintf(buf, sizeof(buf), "/dev/spidev%u.%u", bus, dev);
+        buf[sizeof(buf)-1] = '\0';
         dname = buf;
     }
 

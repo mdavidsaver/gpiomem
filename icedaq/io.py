@@ -45,7 +45,8 @@ class ICEIO(object):
         IO = self.io
 
         IO.setalt([SPI0_SCLK, SPI0_MOSI, SPI0_MISO, SPI0_SS],
-                [ALT0     , ALT0     , ALT0     , ALT0])
+                  [OUT     , OUT     , IN     , OUT])
+#                [ALT0     , ALT0     , ALT0     , ALT0])
 
         IO.setalt([SPI1_SCLK, SPI1_MOSI, SPI1_MISO, SPI1_SS],
                 [OUT     , OUT     , IN     , OUT])
@@ -85,7 +86,20 @@ class ICEIO(object):
         _log.info("Ready done=%s reset=%s", done, reset)
         return reset and done
 
-    def _spi(self, data):
+    def _spi0(self, data):
+        # assume SCLK=1
+        ret = 0
+        for V in data:
+            for i in range(7,-1,-1):
+                # 1 -> 0  setup
+                self.io.output([SPI0_SCLK, SPI0_MOSI], [0, (ord(V)>>i)&1])
+                # 0 -> 1 sample
+                self.io.output([SPI0_SCLK], [1])
+                ret = (ret<<1) | self.io.input([SPI0_MISO])[0]
+        # leave SCLK=1
+        return chr(ret)
+
+    def _spi1(self, data):
         # assume SCLK=1
         ret = 0
         for V in data:
@@ -98,14 +112,20 @@ class ICEIO(object):
         # leave SCLK=1
         return ret
 
-    def spi(self, port=0, data=None, delay=0):
+    def spi(self, port=0, data=None):
         if port==0:
-            return self.spi0.xfer(data, delay=delay)
+            try:
+                self.io.output([SPI0_SS], [0])
+                ret = ''.join((map(self._spi0, data)))
+            finally:
+                self.io.output([SPI0_SS], [1])
+            return ret
         elif port==1:
-            self.io.output([SPI1_SS], [0])
-            ret = list(map(self._spi, data))
-            time.sleep(delay)
-            self.io.output([SPI1_SS], [1])
+            try:
+                self.io.output([SPI1_SS], [0])
+                ret = list(map(self._spi1, data))
+            finally:
+                self.io.output([SPI1_SS], [1])
             return ret
         else:
             raise ValueError("Unknown SPI%s"%port)
@@ -140,7 +160,7 @@ class ICEIO(object):
             if self.ready():
                 raise RuntimeError("Failed to initiate reset")
 
-            self._spi(data=bitstream)
+            self._spi1(data=bitstream)
 
             if not self.ready():
                 raise RuntimeError("Failed to complete configuration")
