@@ -87,13 +87,28 @@ class ICEIO(object):
 
     def _spi(self, data):
         # assume SCLK=1
+        ret = 0
         for V in data:
             for i in range(7,-1,-1):
                 # 1 -> 0  setup
                 self.io.output([SPI1_SCLK, SPI1_MOSI], [0, (ord(V)>>i)&1])
                 # 0 -> 1 sample
                 self.io.output([SPI1_SCLK], [1])
+                ret = (ret<<1) | self.io.input([SPI1_MISO])[0]
         # leave SCLK=1
+        return ret
+
+    def spi(self, port=0, data=None, delay=0):
+        if port==0:
+            return self.spi0.xfer(data, delay=delay)
+        elif port==1:
+            self.io.output([SPI1_SS], [0])
+            ret = list(map(self._spi, data))
+            time.sleep(delay)
+            self.io.output([SPI1_SS], [1])
+            return ret
+        else:
+            raise ValueError("Unknown SPI%s"%port)
 
     def load(self, bitfile=None, bitstream=None):
         if bitstream is None:
