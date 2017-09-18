@@ -20,15 +20,16 @@ SPI1_SS=16  # CE2
 CDONE=24  # 0 - configuring, 1 ready
 CRST=25   # 0 - in reset   , 1 normal
 
-GCLK0=6  # GPCLK2
-GCLK1=5  # GPCLK1
+GPCLK0=4  # N/C
+GPCLK1=5  # fpga pin 34
+GPCLK2=6  # fpga pin 33
 
 class ICEIO(object):
     def __init__(self):
         self.io = GPIOMEM()
         self.pins_std()
-        self.spi0 = SPI(0,0) # CE0
-        self.spi0.mode = 3 # arbitrary
+        #self.spi0 = SPI(0,0) # CE0
+        #self.spi0.mode = 3 # arbitrary
 
         # iCE40 configuration needs
         # SCLK idle high
@@ -54,9 +55,10 @@ class ICEIO(object):
         IO.setalt([CDONE, CRST],
                 [IN   , OUT])
 
-        IO.setalt([GCLK0, GCLK1],
-                [IN, IN]) #[ALT0, ALT0])
+        IO.setalt([GPCLK0, GPCLK1, GPCLK2],
+                [ALT0, ALT0, ALT0])
 
+        IO.output([SPI0_SCLK], [1]) # idles high
         IO.output([SPI1_SCLK], [1]) # idles high
 
     def pins_manual(self):
@@ -64,20 +66,20 @@ class ICEIO(object):
             SPI0_SCLK, SPI0_MOSI, SPI0_MISO, SPI0_SS,
             SPI1_SCLK, SPI1_MOSI, SPI1_MISO, SPI1_SS,
             CRST,
+            GPCLK0, GPCLK1, GPCLK2,
         ]
         self.io.setalt(pins, [OUT]*len(pins))
         pins = [
             CDONE,
-            GCLK0, GCLK1,
         ]
-        self.io.setalt(pins, [OUT]*len(pins))
+        self.io.setalt(pins, [IN]*len(pins))
 
     def pins_off(self):
         pins = [
             SPI0_SCLK, SPI0_MOSI, SPI0_MISO, SPI0_SS,
             SPI1_SCLK, SPI1_MOSI, SPI1_MISO, SPI1_SS,
             CDONE, CRST,
-            GCLK0, GCLK1,
+            GPCLK0, GPCLK1, GPCLK2,
         ]
         self.io.setalt(pins, [IN]*len(pins))
 
