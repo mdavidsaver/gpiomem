@@ -53,7 +53,7 @@ int gpiomem_init(gpiomem *pvt, PyObject *args, PyObject *kws)
 
     pvt->npins = 54;
 
-    pvt->fd = open(dname, O_RDWR|O_CLOEXEC);
+    pvt->fd = open(dname, O_RDWR|O_SYNC|O_CLOEXEC);
     if (pvt->fd<0) {
         PyErr_SetFromErrnoWithFilename(PyExc_OSError, dname);
         return -1;
@@ -404,6 +404,7 @@ PyMODINIT_FUNC init_gpiomem(void)
 
     gpiomem_type.tp_new = PyType_GenericNew;
     if(PyType_Ready(&gpiomem_type)<0) {
+        Py_DecRef(mod);
         fprintf(stderr, "gpiomem object not ready\n");
         MODINIT_RET(NULL);
     }
@@ -412,6 +413,7 @@ PyMODINIT_FUNC init_gpiomem(void)
     Py_INCREF(typeobj);
     if(PyModule_AddObject(mod, "GPIOMEM", typeobj)) {
         Py_DECREF(typeobj);
+        Py_DecRef(mod);
         fprintf(stderr, "Failed to add GPIOMEM object to module\n");
         MODINIT_RET(NULL);
     }

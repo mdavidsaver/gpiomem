@@ -9,6 +9,8 @@ setup(
   ext_modules = [
     Extension("gpiomem._gpiomem",
               sources = ['gpiomem/gpiomem.c']),
+    Extension("gpiomem._iomem",
+              sources = ['gpiomem/iommap.c']),
     Extension("gpiomem._lspi",
               sources = ['gpiomem/lspi.c']),
   ]
