@@ -109,8 +109,8 @@ class ICEIO(object):
                 # 1 -> 0  setup
                 self.io.output([SPI1_SCLK, SPI1_MOSI], [0, (ord(V)>>i)&1])
                 # 0 -> 1 sample
-                self.io.output([SPI1_SCLK], [1])
-                ret = (ret<<1) | self.io.input([SPI1_MISO])[0]
+                _S, B = self.io.output([SPI1_SCLK, SPI1_MISO], [1, None])
+                ret = (ret<<1) | B
         # leave SCLK=1
         return ret
 

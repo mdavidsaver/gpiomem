@@ -5,12 +5,21 @@
 #include <Python.h>
 #include <structmember.h>
 
+#include <string.h>
 #include <inttypes.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <fcntl.h>
+
+// N <= 5
+#define R_GPFSEL(N) (0x0 + 4u*(N))
+
+// N <= 1
+#define R_GPSET(N) (0x1Cu + 4u*(N))
+#define R_GPCLR(N) (0x28u + 4u*(N))
+#define R_GPLEV(N) (0x34u + 4u*(N))
 
 typedef struct {
     PyObject_HEAD
@@ -127,8 +136,10 @@ int gpiomem_getalt_pin(gpiomem *pvt, unsigned pin, void *pinfo)
     unsigned nreg = pin/10u, nbit = pin%10u;
     uint32_t val = info->rval[nreg]>>(3u*nbit);
     PyObject *num = PyInt_FromLong(val&7u);
+
     if(!num)
         return -1;
+
     if(PyList_Append(info->ret, num)) {
         Py_DECREF(num);
         return -1;
@@ -151,7 +162,7 @@ PyObject *gpiomem_getalt(gpiomem *pvt, PyObject *args)
         return NULL;
 
     for(i=0; i<6; i++)
-        info.rval[i] = ioread32(pvt->mbase + i*4u);
+        info.rval[i] = ioread32(pvt->mbase + R_GPFSEL(i));
 
     if(foreachpin(pvt, pseq, &gpiomem_getalt_pin, &info)) {
         Py_DECREF(info.ret);
@@ -212,37 +223,52 @@ PyObject *gpiomem_setalt(gpiomem *pvt, PyObject *args)
     {
         uint32_t val;
         if(!info.mask[i]) continue;
-        val  = ioread32(pvt->mbase + i*4u) & ~info.mask[i];
+        val  = ioread32(pvt->mbase + R_GPFSEL(i)) & ~info.mask[i];
         val |= info.rval[i] & info.mask[i];
-        iowrite32(pvt->mbase + i*4u, val);
+        iowrite32(pvt->mbase + R_GPFSEL(i), val);
     }
 
     Py_RETURN_NONE;
 }
 
 typedef struct {
-    uint32_t smask[2], cmask[2];
-    PyObject *ret;
+    uint32_t smask[2], // bits to set
+             cmask[2], // bits to clear
+             cur[2];   // current levels
+    PyObject *ret,
+             *in;
 } outinfo;
 
 static
 int gpiomem_out_pin(gpiomem *pvt, unsigned pin, void *pinfo)
 {
     outinfo *info = pinfo;
-    PyObject *num = PyIter_Next(info->ret);
-    Py_ssize_t val;
+    PyObject *num = PyIter_Next(info->in);
     unsigned nreg = pin/32u, nbit = pin%32u;
 
     if(!num)
         return -1;
 
-    val = PyNumber_AsSsize_t(num, NULL);
+    if(num!=Py_None) {
+
+        Py_ssize_t val = PyNumber_AsSsize_t(num, NULL);
+
+        if(val!=0)
+            info->smask[nreg] |= 1<<nbit;
+        else
+            info->cmask[nreg] |= 1<<nbit;
+    }
     Py_DECREF(num);
 
-    if(val!=0)
-        info->smask[nreg] |= 1<<nbit;
-    else
-        info->cmask[nreg] |= 1<<nbit;
+    num = PyInt_FromLong(!!(info->cur[nreg]&(1<<nbit)));
+    if(!num)
+        return -1;
+
+    if(PyList_Append(info->ret, num)) {
+        Py_DECREF(num);
+        return -1;
+    }
+    Py_DECREF(num);
 
     return 0;
 }
@@ -253,28 +279,41 @@ PyObject *gpiomem_out(gpiomem *pvt, PyObject *args)
     PyObject *pseq, *vals;
     outinfo info;
 
+    memset(&info, 0, sizeof(info));
+
     if(!PyArg_ParseTuple(args, "OO", &pseq, &vals))
         return NULL;
 
-    info.ret = PyObject_GetIter(vals);
+    info.ret = PyList_New(0);
     if(!info.ret)
-        return NULL;
+        goto err;
+
+    info.in = PyObject_GetIter(vals);
+    if(!info.in)
+        goto err;
 
     memset(info.smask, 0, sizeof(info.smask));
     memset(info.cmask, 0, sizeof(info.cmask));
 
-    if(foreachpin(pvt, pseq, &gpiomem_out_pin, &info)) {
-        Py_DECREF(info.ret);
-        return NULL;
-    }
-    Py_DECREF(info.ret);
+    info.cur[0] = ioread32(pvt->mbase + R_GPLEV(0));
+    info.cur[1] = ioread32(pvt->mbase + R_GPLEV(1));
 
-    if(info.smask[0]) iowrite32(pvt->mbase + 0x1c, info.smask[0]);
-    if(info.smask[1]) iowrite32(pvt->mbase + 0x20, info.smask[1]);
-    if(info.cmask[0]) iowrite32(pvt->mbase + 0x28, info.cmask[0]);
-    if(info.cmask[1]) iowrite32(pvt->mbase + 0x2c, info.cmask[1]);
+    if(foreachpin(pvt, pseq, &gpiomem_out_pin, &info))
+        goto err;
 
-    Py_RETURN_NONE;
+    Py_DECREF(info.in);
+    info.in = NULL;
+
+    iowrite32(pvt->mbase + R_GPSET(0), info.smask[0]);
+    iowrite32(pvt->mbase + R_GPSET(1), info.smask[1]);
+    iowrite32(pvt->mbase + R_GPCLR(0), info.cmask[0]);
+    iowrite32(pvt->mbase + R_GPCLR(1), info.cmask[1]);
+
+    return info.ret;
+err:
+    Py_XDECREF(info.in);
+    Py_XDECREF(info.ret);
+    return NULL;
 }
 
 static
@@ -291,6 +330,7 @@ int gpiomem_in_pin(gpiomem *pvt, unsigned pin, void *pinfo)
         Py_DECREF(num);
         return -1;
     }
+    Py_DECREF(num);
     return 0;
 }
 
@@ -307,8 +347,8 @@ PyObject *gpiomem_in(gpiomem *pvt, PyObject *args)
     if(!info.ret)
         return NULL;
 
-    info.cmask[0] = ioread32(pvt->mbase + 0x34);
-    info.cmask[1] = ioread32(pvt->mbase + 0x38);
+    info.cmask[0] = ioread32(pvt->mbase + R_GPLEV(0));
+    info.cmask[1] = ioread32(pvt->mbase + R_GPLEV(1));
 
     if(foreachpin(pvt, pseq, &gpiomem_in_pin, &info)) {
         Py_DECREF(info.ret);
