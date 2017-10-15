@@ -28,8 +28,8 @@ class ICEIO(object):
     def __init__(self):
         self.io = GPIOMEM()
         self.pins_std()
-        #self.spi0 = SPI(0,0) # CE0
-        #self.spi0.mode = 3 # arbitrary
+        self.spi0 = SPI(0,0) # CE0
+        self.spi0.mode = 3 # arbitrary
 
         # iCE40 configuration needs
         # SCLK idle high
@@ -45,9 +45,10 @@ class ICEIO(object):
     def pins_std(self):
         IO = self.io
 
-        IO.setalt([SPI0_SCLK, SPI0_MOSI, SPI0_MISO, SPI0_SS],
-                  [OUT     , OUT     , IN     , OUT])
-#                [ALT0     , ALT0     , ALT0     , ALT0])
+        # leave SPI0 at defaults (ALT0 for SCLK/MOSI/MISO, OUT for SS)
+#        IO.setalt([SPI0_SCLK, SPI0_MOSI, SPI0_MISO, SPI0_SS],
+#                  [OUT     , OUT     , IN     , OUT])
+#                  [ALT0     , ALT0     , ALT0     , ALT0])
 
         IO.setalt([SPI1_SCLK, SPI1_MOSI, SPI1_MISO, SPI1_SS],
                 [OUT     , OUT     , IN     , OUT])
@@ -63,7 +64,7 @@ class ICEIO(object):
 
     def pins_manual(self):
         pins = [
-            SPI0_SCLK, SPI0_MOSI, SPI0_MISO, SPI0_SS,
+#            SPI0_SCLK, SPI0_MOSI, SPI0_MISO, SPI0_SS,
             SPI1_SCLK, SPI1_MOSI, SPI1_MISO, SPI1_SS,
             CRST,
             GPCLK0, GPCLK1, GPCLK2,
@@ -76,7 +77,7 @@ class ICEIO(object):
 
     def pins_off(self):
         pins = [
-            SPI0_SCLK, SPI0_MOSI, SPI0_MISO, SPI0_SS,
+#            SPI0_SCLK, SPI0_MOSI, SPI0_MISO, SPI0_SS,
             SPI1_SCLK, SPI1_MOSI, SPI1_MISO, SPI1_SS,
             CDONE, CRST,
             GPCLK0, GPCLK1, GPCLK2,
@@ -87,19 +88,6 @@ class ICEIO(object):
         done, reset = self.io.input([CDONE, CRST])
         _log.info("Ready done=%s reset=%s", done, reset)
         return reset and done
-
-    def _spi0(self, data):
-        # assume SCLK=1
-        ret = 0
-        for V in data:
-            for i in range(7,-1,-1):
-                # 1 -> 0  setup
-                self.io.output([SPI0_SCLK, SPI0_MOSI], [0, (ord(V)>>i)&1])
-                # 0 -> 1 sample
-                self.io.output([SPI0_SCLK], [1])
-                ret = (ret<<1) | self.io.input([SPI0_MISO])[0]
-        # leave SCLK=1
-        return chr(ret)
 
     def _spi1(self, data):
         # assume SCLK=1
@@ -116,12 +104,7 @@ class ICEIO(object):
 
     def spi(self, port=0, data=None):
         if port==0:
-            try:
-                self.io.output([SPI0_SS], [0])
-                ret = ''.join((map(self._spi0, data)))
-            finally:
-                self.io.output([SPI0_SS], [1])
-            return ret
+            self.spi0.xfer(data=data)
         elif port==1:
             try:
                 self.io.output([SPI1_SS], [0])
