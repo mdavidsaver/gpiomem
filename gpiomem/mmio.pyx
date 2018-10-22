@@ -1,8 +1,11 @@
 
 import os
+import logging
 
 #from libc.stdint import uint32_t, uint16_t, uint8_t
 from libc.errno cimport errno
+
+_log = logging.getLogger(__name__)
 
 cdef extern from "fcntl.h":
     cdef int O_CLOEXEC
@@ -34,6 +37,10 @@ cdef extern from "gnummio.h":
     void* ptr_add(void* base, size_t offset)
 
 cdef class MMIO(object):
+    """MMIO(name, length, offset=0)
+
+    MMIO Access
+    """
     cdef int fd
     cdef size_t length
     cdef void* base
@@ -64,17 +71,19 @@ cdef class MMIO(object):
             munmap(self.base, self.length)
             self.fd = -1
 
-    cdef void _check(self, unsigned width, size_t offset):
+    cdef void _check(self, unsigned width, size_t offset) except *:
         if width not in (8, 16, 32):
             raise ValueError("Unsupported width %d"%width)
         width /= 8
         if offset%width!=0:
-            raise ValueError("Unaligned access")
+            raise ValueError("Unaligned access %d%%%d"%(offset, width))
 
         if offset >= self.length or width > self.length-offset:
             raise ValueError("Out of range")
 
     def io(self, prog):
+        """io([(offset, width, mask, value)]) -> []
+        """
         cdef size_t offset, mask, fullmask, value, V
         cdef unsigned width
         cdef void* addr
@@ -82,19 +91,22 @@ cdef class MMIO(object):
         ret = []
         for offset, width, mask, value in prog:
             self._check(width, offset)
+            _log.debug("io((0x%x, %d, 0x%x, 0x%x), ...)", offset, width, mask, value)
 
             width /= 8
 
             fullmask = 0xffffffffffffffff
             fullmask >>= (64-8*width)
 
-            mask = mask&fullmask
+            mask &= fullmask
+            _log.debug("XX %x %x", mask, fullmask)
 
             addr = ptr_add(self.base, offset)
 
             if mask!=fullmask:
                 # something to read
-                value &= ~mask
+                value &= mask
+                _log.debug("YY %x %x", value, ~mask)
 
                 if width==1:
                     V = ioread8(addr)
@@ -105,10 +117,14 @@ cdef class MMIO(object):
                 else:
                     V = 0xdeadbeef
 
+                _log.debug("ioread%d(0x%x) -> 0x%x", 8*width, offset, V)
+
                 value |= V&(~mask)
 
             if mask!=0:
                 # something to write
+                _log.debug("iowrite%d(0x%x, 0x%x)", 8*width, offset, value)
+
                 if width==1:
                     iowrite8(addr, value)
                 elif width==2:
@@ -121,7 +137,7 @@ cdef class MMIO(object):
         return ret
 
     def __getitem__(self, size_t offset):
-        cdef size_t width
+        cdef size_t width, ret
         cdef void* addr
 
         self._check(self.width, offset)
@@ -130,12 +146,18 @@ cdef class MMIO(object):
 
         addr = ptr_add(self.base, offset)
 
+
         if width==1:
-            return ioread8(addr)
+            ret = ioread8(addr)
         elif width==2:
-            return ioread16(addr)
+            ret = ioread16(addr)
         elif width==4:
-            return ioread32(addr)
+            ret = ioread32(addr)
+        else:
+            ret = -1
+
+        _log.debug("ioread%d(0x%x) -> 0x%x", 8*width, offset, ret)
+        return ret
 
     def __setitem__(self, size_t offset, size_t value):
         cdef size_t width
@@ -146,6 +168,8 @@ cdef class MMIO(object):
         width = self.width/8
 
         addr = ptr_add(self.base, offset)
+
+        _log.debug("iowrite%d(0x%x, 0x%x)", 8*width, offset, value)
 
         if width==1:
             iowrite8(addr, value)

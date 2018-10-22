@@ -7,9 +7,8 @@ setup(
   name = "gpiomem",
   version = "0.1",
   description = "Access for RPi/BCM GPIO registers",
+  modules = ['gpiomem', 'gpiomem.test'],
   ext_modules = [
-    Extension("gpiomem._gpiomem",
-              sources = ['gpiomem/gpiomem.c']),
     Extension("gpiomem._lspi",
               sources = ['gpiomem/lspi.c']),
   ] + cythonize([

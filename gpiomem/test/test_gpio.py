@@ -44,7 +44,7 @@ class TestIO(unittest.TestCase):
         self.file.flush()
 
         self.IO.setalt([0, 11, 14], [7, 6, 0])
-        self.IO._sync() # not needed for real I/O registers
+        self.file.flush()
 
         self.file.seek(0)
         self.assertEqual(struct.unpack('<I', self.file.read(4))[0], 0x1234567f)
@@ -66,7 +66,7 @@ class TestIO(unittest.TestCase):
         self.file.flush()
 
         self.IO.output([0, 4, 30, 31, 32, 40], [1, 1, 0, 1, 1, 1])
-        self.IO._sync() # not needed for real I/O registers
+        self.file.flush()
 
         self.file.seek(0x1c)
         self.assertEqual(struct.unpack('<I', self.file.read(4))[0], 0x80000011)
@@ -75,3 +75,20 @@ class TestIO(unittest.TestCase):
         self.file.seek(0x28)
         self.assertEqual(struct.unpack('<I', self.file.read(4))[0], 0x40000000)
         self.assertEqual(struct.unpack('<I', self.file.read(4))[0], 0x00000000)
+
+    def test_in(self):
+        self.file.seek(0x34)
+        self.file.write(struct.pack('<I', 0))
+        self.file.write(struct.pack('<I', 0))
+        self.file.flush()
+
+        self.assertListEqual(self.IO.input([0, 4, 30, 31, 32, 40]),
+                             [False, False, False, False, False, False])
+
+        self.file.seek(0x34)
+        self.file.write(struct.pack('<I', 0x12345678))
+        self.file.write(struct.pack('<I', 0xabcdef01))
+        self.file.flush()
+
+        self.assertListEqual(self.IO.input([0, 4, 30, 31, 32, 40]),
+                             [False, True, False, False, True, True])
