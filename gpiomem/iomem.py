@@ -14,7 +14,7 @@ ALT3=7
 ALT4=3
 ALT5=2
 
-class GPIOMEM:
+class GPIOMEM(object):
     def __init__(self, name=None):
         self._io = MMIO(name or "/dev/gpiomem", 0x100)
         self._io.width = 32

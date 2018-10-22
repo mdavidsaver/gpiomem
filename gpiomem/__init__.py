@@ -2,4 +2,4 @@ from __future__ import absolute_import
 
 #from _gpiomem import *
 from .iomem import *
-from ._lspi import *
+from .lspi import *

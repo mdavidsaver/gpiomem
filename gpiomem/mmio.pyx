@@ -2,7 +2,6 @@
 import os
 import logging
 
-#from libc.stdint import uint32_t, uint16_t, uint8_t
 from libc.errno cimport errno
 
 _log = logging.getLogger(__name__)
