@@ -69,15 +69,9 @@ class ICEIO(object):
             self.spi0.xfer(data=data)
 
         elif port==1:
-            try:
-                self.io.output(SPI1_SS, 0)
-                self.io.sclk = SPI1_SCLK
-                self.io.mosi = SPI1_MOSI
-                self.io.miso = SPI1_MISO
-                ret = self.io.spi3(data)
-            finally:
-                self.io.output(SPI1_SS, 1)
-                self.io.output(SPI1_SCLK, 1)
+            self.io.output(SPI1_SS, 0)
+            with self.io.cleanup([(SPI1_SS, 1), (SPI1_SCLK, 1)]):
+                ret = self.io.spi3(data, sclk=SPI1_SCLK, mosi=SPI1_MOSI, miso=SPI1_MISO)
             return ret
 
         else:
@@ -96,7 +90,7 @@ class ICEIO(object):
 
         _log.info("Load bitstream %s from %s", len(bitstream), bitfile)
 
-        try:
+        with self.io.cleanup([(SPI1_SS, 1), (SPI1_SCLK, 1), (CRST, 1)]):
 
             # ensure not in reset and select
             self.io.output(SPI1_SS, 0)
@@ -119,12 +113,6 @@ class ICEIO(object):
 
             if not self.ready():
                 raise RuntimeError("Failed to complete configuration")
-
-        finally:
-            # ensure not in reset and de-select
-            self.io.output(SPI1_SS, 1)
-            self.io.output(SPI1_SCLK, 1)
-            self.io.output(CRST, 1)
 
 def getargs():
     from argparse import ArgumentParser

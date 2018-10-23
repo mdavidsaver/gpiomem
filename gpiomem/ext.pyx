@@ -48,13 +48,12 @@ cdef class MMIO(object):
     cdef size_t length
     cdef void* base
 
-    cdef public unsigned mosi, miso, sclk
-
     cdef readonly unsigned npins
+    cdef public bint debug
 
     def __cinit__(self, *args, **kws):
         self.npins = 54
-        self.mosi = self.miso = self.sclk = -1 # invalid
+        self.debug = False
 
     def __init__(self, name, size_t length, size_t offset=0):
         self.fd = open(name, O_RDWR|O_CLOEXEC|O_SYNC)
@@ -81,11 +80,13 @@ cdef class MMIO(object):
 
     cdef uint32_t read32(self, size_t offset):
         cdef uint32_t val = ioread32(ptr_add(self.base, offset))
-        _log.debug("read32(0x%x) -> 0x%08x", offset, val)
+        if self.debug:
+            _log.debug("read32(0x%x) -> 0x%08x", offset, val)
         return val
 
     cdef void write32(self, size_t offset, uint32_t val):
-        _log.debug("write32(0x%x, 0x%08x)", offset, val)
+        if self.debug:
+            _log.debug("write32(0x%x, 0x%08x)", offset, val)
         iowrite32(ptr_add(self.base, offset), val)
 
     cpdef unsigned getalt(self, unsigned pin):
@@ -158,26 +159,35 @@ cdef class MMIO(object):
 
         return cur&mask
 
-    def spi3(self, bytes inp):
+    def spi3(self, bytes inp, unsigned sclk, unsigned mosi, unsigned miso, bint cpol=1, bint cpha=1):
         """Bit-bang SPI in mode=3 (cpol=1, cpha=1)
         """
         cdef size_t mask, n
-        cdef unsigned b
+        cdef unsigned b, mosib = self.npins, misob = self.npins
         cdef char* inpb = inp
+        cdef char* retv = NULL
 
         ret = bytearray(len(inp)) # initially zeros
-        cdef char* retv = ret
+        retv = ret
 
-        # assume SCLK==1
+        # assume initially SCLK==cpol
 
         for n in range(len(inp)):
             for b in range(8):
                 mask = 1<<(7-b)
-                self.output(self.sclk, 0)            # SCLK 1 -> 0, slave sets up MISO
-                self.output(self.mosi, inpb[n]&mask) # we set up MOSI
 
-                self.output(self.sclk, 1)            # SCLK 0 -> 1, slave samples MOSI
-                if self.input(self.miso):            # we sample MISO
+                self.output(sclk, not cpol)
+
+                if cpha:
+                    self.output(mosi, inpb[n]&mask) # cpha=1 setup
+                elif self.input(miso):              # cpha=0 sample
+                    retv[n]|=mask
+
+                self.output(sclk, cpol)
+
+                if not cpha:
+                    self.output(mosi, inpb[n]&mask) # cpha=0 setup
+                elif self.input(miso):              # cpha=1 sample
                     retv[n]|=mask
 
         return ret
@@ -222,8 +232,8 @@ cdef class lspi(object):
         ret = bytearray(len(data))
         retp = ret
 
-        X.tx_buf = <unsigned long>datap
-        X.rx_buf = <unsigned long>retp
+        X.tx_buf = <uint64_t>datap
+        X.rx_buf = <uint64_t>retp
         X.len = len(ret)
         X.bits_per_word = 8
         X.speed_hz = self.speed

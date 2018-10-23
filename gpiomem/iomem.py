@@ -58,3 +58,14 @@ class GPIOMEM(MMIO):
         for pin, new in pairs:
             _log.info("Configure pin%u -> %s", pin, Modes[new])
             self.setalt(pin, new)
+
+    class Cleaner(object):
+        def __init__(self, io, args):
+            self.io, self.args = io, args
+        def __enter__(self):
+            pass
+        def __exit__(self, A,B,C):
+            [self.io.output(*arg) for arg in self.args]
+
+    def cleanup(self, args):
+        return self.Cleaner(self, args)
