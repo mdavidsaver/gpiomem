@@ -9,6 +9,9 @@ from posix.mman cimport mmap, munmap, off_t, PROT_READ, PROT_WRITE, MAP_SHARED
 
 _log = logging.getLogger(__name__)
 
+cdef extern from "<string.h>":
+    void memset(void *dest, int c, size_t s)
+
 cdef extern from "gnummio.h":
     ctypedef int uint8_t
     ctypedef int uint16_t
@@ -225,6 +228,8 @@ cdef class lspi(object):
         cdef char* retp
         cdef spi_ioc_transfer X
         cdef uint32_t mode = self.mode
+
+        memset(<void*>&X, 0, sizeof(X))
 
         if ioctl(self.fd, SPI_IOC_WR_MODE32, &mode)==-1:
             raise OSError(errno, "SPI Mode")
