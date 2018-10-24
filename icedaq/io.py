@@ -45,6 +45,8 @@ class ICEIO(object):
         self.io.output(SPI1_SCLK, 1)
         self.io.output(CRST, 1)
 
+        self.io.output(SPI0_SS, 1)
+
         self.spi0 = SPI(0,0) # CE0
         self.spi0.mode = 3 # arbitrary
 
@@ -66,13 +68,14 @@ class ICEIO(object):
 
     def spi(self, port=0, data=None):
         if port==0:
-            self.spi0.xfer(data=data)
+            self.io.output(SPI0_SS, 0)
+            with self.io.cleanup([(SPI0_SS, 1)]):
+                return self.spi0.xfer(data)
 
         elif port==1:
             self.io.output(SPI1_SS, 0)
             with self.io.cleanup([(SPI1_SS, 1), (SPI1_SCLK, 1)]):
-                ret = self.io.spi3(data, sclk=SPI1_SCLK, mosi=SPI1_MOSI, miso=SPI1_MISO)
-            return ret
+                return self.io.spi3(data, sclk=SPI1_SCLK, mosi=SPI1_MOSI, miso=SPI1_MISO)
 
         else:
             raise ValueError("Unknown SPI%s"%port)

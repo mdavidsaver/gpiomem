@@ -201,13 +201,14 @@ cdef class lspi(object):
     cdef public unsigned mode, speed, delay
     cdef int fd
 
+    def __cinit__(self, *args, **kws):
+        self.mode = self.speed = self.delay = 0
+
     def __init__(self, bus=0, device=0, name=None):
         if name is None:
             name = '/dev/spidev%u.%u'%(bus, device)
 
         self.fd = open(name, O_RDWR|O_CLOEXEC)
-
-        self.mode = self.speed = self.delay = 0
 
     def __dealloc__(self):
         self.close()
@@ -226,10 +227,10 @@ cdef class lspi(object):
     def xfer(self, bytes data):
         cdef char* datap = data
         cdef char* retp
-        cdef spi_ioc_transfer X
+        cdef spi_ioc_transfer X[1]
         cdef uint32_t mode = self.mode
 
-        memset(<void*>&X, 0, sizeof(X))
+        memset(<void*>X, 0, sizeof(X))
 
         if ioctl(self.fd, SPI_IOC_WR_MODE32, &mode)==-1:
             raise OSError(errno, "SPI Mode")
@@ -237,12 +238,12 @@ cdef class lspi(object):
         ret = bytearray(len(data))
         retp = ret
 
-        X.tx_buf = <uint64_t><size_t>datap
-        X.rx_buf = <uint64_t><size_t>retp
-        X.len = len(ret)
-        X.bits_per_word = 8
-        X.speed_hz = self.speed
-        X.delay_usecs = self.delay
+        X[0].tx_buf = <size_t>datap
+        X[0].rx_buf = <size_t>retp
+        X[0].len = len(ret)
+        X[0].bits_per_word = 8
+        X[0].speed_hz = self.speed
+        X[0].delay_usecs = self.delay
 
         if ioctl(self.fd, SPI_IOC_MESSAGE(1), X)==-1:
             raise OSError(errno, "SPI Transfer")
