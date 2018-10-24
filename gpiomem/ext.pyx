@@ -232,8 +232,8 @@ cdef class lspi(object):
         ret = bytearray(len(data))
         retp = ret
 
-        X.tx_buf = <uint64_t>datap
-        X.rx_buf = <uint64_t>retp
+        X.tx_buf = <uint64_t><size_t>datap
+        X.rx_buf = <uint64_t><size_t>retp
         X.len = len(ret)
         X.bits_per_word = 8
         X.speed_hz = self.speed
