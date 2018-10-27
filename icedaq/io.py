@@ -2,6 +2,7 @@ import logging
 _log = logging.getLogger(__name__)
 
 import time
+import struct
 
 from gpiomem import GPIOMEM, SPI, ALT0, ALT4, IN, OUT
 
@@ -28,8 +29,19 @@ class ICEIO(object):
     def __init__(self):
         self.io = GPIOMEM()
 
+        # idle SPI1 and ensure not in reset
+        self.io.output(SPI1_SS, 1)
+        self.io.output(SPI1_SCLK, 1)
+        self.io.output(CRST, 1)
+
+        self.io.output(SPI0_SS, 1)
+
         self.io.configure([
             # leave SPI0 at defaults
+            (SPI0_SCLK, ALT0),
+            (SPI0_MOSI, ALT0),
+            (SPI0_SS  , OUT),
+            (SPI0_MISO, ALT0),
             (SPI1_SCLK, OUT),
             (SPI1_MOSI, OUT),
             (SPI1_SS  , OUT),
@@ -40,15 +52,9 @@ class ICEIO(object):
             (GPCLK2   , ALT0),
         ])
 
-        # idle SPI1 and ensure not in reset
-        self.io.output(SPI1_SS, 1)
-        self.io.output(SPI1_SCLK, 1)
-        self.io.output(CRST, 1)
-
-        self.io.output(SPI0_SS, 1)
-
         self.spi0 = SPI(0,0) # CE0
         self.spi0.mode = 3 # arbitrary
+        self.spi0.speed=50000
 
         # iCE40 configuration needs
         # SCLK idle high
@@ -116,6 +122,15 @@ class ICEIO(object):
 
             if not self.ready():
                 raise RuntimeError("Failed to complete configuration")
+
+    def port(self, port, cnt=None, data=None):
+        assert port>0, port
+        if data is None:
+            data = b'\0'*cnt
+        data=struct.pack('B', port)+data
+        reply = self.spi(port=0, data=data)
+        _log.debug("PORT%d %s -> %s", port, repr(data), repr(reply))
+        return reply[1:]
 
 def getargs():
     from argparse import ArgumentParser
